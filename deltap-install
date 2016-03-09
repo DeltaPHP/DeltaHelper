@@ -185,7 +185,7 @@ fi
 
 debug "composer $CMD_ADD global require \"fxp/composer-asset-plugin:~1.1\"" 
 
-#COMPOSER_DISABLE_XDEBUG_WARN=1 composer $CMD_ADD global require "fxp/composer-asset-plugin:~1.1"
+COMPOSER_DISABLE_XDEBUG_WARN=1 composer $CMD_ADD global require "fxp/composer-asset-plugin:~1.1"
 
 if [[ $DEV == 1 ]]; then
 	CMD_ADD="$CMD_ADD --prefer-source"
@@ -194,7 +194,7 @@ else
 fi
 
 debug "composer install -n $CMD_ADD"
-#COMPOSER_DISABLE_XDEBUG_WARN=1 composer install -n $CMD_ADD
+COMPOSER_DISABLE_XDEBUG_WARN=1 composer install -n $CMD_ADD
 
 rc=$?; 
 if [[ $rc != 0 ]]; then
