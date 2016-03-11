@@ -8,34 +8,43 @@ fi
 
 show_help() {
 cat << EOF
-Usage: ${0##*/} [-v] [-w|--rewrite] [-d|--dev] [-r|--repo <repository>]  [[-t|--tag] | [-b|--branch] | [-c|--commit] <version>] [-o|--output <dir>]
+Usage: ${0##*/} [-v] [-w|--rewrite] [-d|--dev] [-r|--repo <repository>]  [[-t|--tag] | [-b|--branch] | [-c|--commit] <version>] [-o|--output <dir>] [--dboptions "--option value"]
 Install selected version from tag/branch/commit.
 
     -h --help           display this help and exit
     -t --tag            version is tag
     -b --branch         version is branch HEAD
     -c --commit         version is commit hash    
-    -r|--repo			git repository
-    -w|--rewrite		clear output dir if exist
-    -o|--output			path to install folder
-    -d|--dev			install in development mode
-    -v --verbose        verbose mode.
+    -r|--repo           git repository
+    -w|--rewrite        clear output dir if exist
+    -o|--output         path to install folder
+    -d|--dev            install in development mode
+    -v --verbose        verbose mode
+    --dboptions         options for database creation in quoted string
 EOF
 }
 
 debug() {
-	if [[ $VERBOSE == 1 ]]; then
-		echo $1
-	fi
+    if [[ $VERBOSE == 1 ]]; then
+        echo $1
+    fi
+}
+
+edebug() {
+    if [[ $VERBOSE == 1 ]]; then
+        echo -e $1
+    fi
 }
 
 SHORT=hvt:b:c:r:o:,w,d
-LONG=help,verbose,tag:,branch:,commit:,repo:,output:,rewrite,dev
+LONG=help,verbose,tag:,branch:,commit:,repo:,output:,rewrite,dev,dboptions:
 
 PARSED=$(getopt --options $SHORT --longoptions $LONG --name "$0" -- "$@")
 if [[ $? != 0 ]]; then
     exit 2
 fi
+
+echo "$PARSED"
 
 eval set -- "$PARSED"
 
@@ -46,6 +55,7 @@ DIR="/var/www/deltapp.dev/"
 REWRITE=0
 VERBOSE=0
 DEV=0
+DBOPTIONS=0
 
 
 while true; do
@@ -77,7 +87,7 @@ while true; do
             REPO="$2"
             shift 2
             ;;
-		-o|--output)
+        -o|--output)
             DIR="$2"
             shift 2
             ;;
@@ -88,6 +98,10 @@ while true; do
         -d|--dev)
             DEV=1
             shift 1
+            ;;
+        --dboptions)
+            DBOPTIONS="$2"
+            shift 2
             ;;
         --)
             shift
@@ -103,21 +117,21 @@ done
 debug "try to install $SOURCE_VERSION: $VERSION from: $REPO to: $DIR"
 
 if [ -d $DIR ]; then
-	if [ "$(ls -A $DIR) 2>/dev/null" ]; then
-		if [[ $REWRITE == 1 ]]; then
-			debug "clear not empty $DIR"
-			rm -Rf $DIR
-		else 
-			echo "Target dir $DIR not empty" >&2
-			exit 1;
-		fi
-	fi
+    if [ "$(ls -A $DIR) 2>/dev/null" ]; then
+        if [[ $REWRITE == 1 ]]; then
+            debug "clear not empty $DIR"
+            rm -Rf $DIR
+        else 
+            echo "Target dir $DIR not empty" >&2
+            exit 1;
+        fi
+    fi
 fi
 
 if [[ $VERBOSE == 1 ]]; then
-	CMD_ADD="-v"
+    CMD_ADD="-v"
 else
-	CMD_ADD="-q"
+    CMD_ADD="-q"
 fi
 
 git clone $CMD_ADD $REPO $DIR
@@ -129,58 +143,58 @@ debug "cd $DIR"
 cd $DIR
 
 case $SOURCE_VERSION in
-	tag)
-		#check tags
-		debug "git tag | grep $VERSION"
-		git tag | grep $VERSION > /dev/null
-		rc=$?; 
-		if [[ $rc != 0 ]]; then
-			echo "tag $VERSION not exist" >&2
-			#rm -Rf $DIR
-			exit $rc
-		fi
-			
-		TAG=$(git describe --exact-match --abbrev=0 --tags 2>/dev/null)
-		if [[ $VERSION != $TAG ]]; then
-			debug "git checkout $VERSION"
-			git checkout -q $VERSION
-		fi
-		;;
-	branch)		
-		#check branch
-		debug "git branch -r | grep \"$VERSION\""
-		git branch -r | grep $VERSION > /dev/null 2>&1
-		rc=$?; 
-		if [[ $rc != 0 ]]; then
-			echo "branch $VERSION not exist" >&2
-			rm -Rf $DIR
-			exit $rc
-		fi 
-		
-		BRANCH=$(git branch | grep "*" | awk '{print($2)}' 2>/dev/null)
-		if [[ $VERSION != $BRANCH ]]; then
-			debug "git checkout -t origin/$VERSION"
-			git checkout -t origin/$VERSION
-		fi
-		;;
-	commit)
-		#check commit
-		debug "git log --pretty=oneline | grep $VERSION"
-		git log --pretty=oneline | grep $VERSION > /dev/null 2>&1
-		rc=$?; 
-		if [[ $rc != 0 ]]; then
-			echo "commit $VERSION not exist" >&2
-			rm -Rf $DIR
-			exit $rc
-		fi
-		git checkout $version
-		;;
+    tag)
+        #check tags
+        debug "git tag | grep $VERSION"
+        git tag | grep $VERSION > /dev/null
+        rc=$?; 
+        if [[ $rc != 0 ]]; then
+            echo "tag $VERSION not exist" >&2
+            rm -Rf $DIR
+            exit $rc
+        fi
+            
+        TAG=$(git describe --exact-match --abbrev=0 --tags 2>/dev/null)
+        if [[ $VERSION != $TAG ]]; then
+            debug "git checkout $VERSION"
+            git checkout -q $VERSION
+        fi
+        ;;
+    branch)        
+        #check branch
+        debug "git branch -r | grep \"$VERSION\""
+        git branch -r | grep $VERSION > /dev/null 2>&1
+        rc=$?; 
+        if [[ $rc != 0 ]]; then
+            echo "branch $VERSION not exist" >&2
+            rm -Rf $DIR
+            exit $rc
+        fi 
+        
+        BRANCH=$(git branch | grep "*" | awk '{print($2)}' 2>/dev/null)
+        if [[ $VERSION != $BRANCH ]]; then
+            debug "git checkout -t origin/$VERSION"
+            git checkout -t origin/$VERSION
+        fi
+        ;;
+    commit)
+        #check commit
+        debug "git log --pretty=oneline | grep $VERSION"
+        git log --pretty=oneline | grep $VERSION > /dev/null 2>&1
+        rc=$?; 
+        if [[ $rc != 0 ]]; then
+            echo "commit $VERSION not exist" >&2
+            rm -Rf $DIR
+            exit $rc
+        fi
+        git checkout $version
+        ;;
 esac
 
 if [[ $VERBOSE == 1 ]]; then
-	CMD_ADD="-v "
+    CMD_ADD="-v "
 else
-	CMD_ADD="-q "
+    CMD_ADD="-q "
 fi
 
 debug "composer $CMD_ADD global require \"fxp/composer-asset-plugin:~1.1\"" 
@@ -188,9 +202,9 @@ debug "composer $CMD_ADD global require \"fxp/composer-asset-plugin:~1.1\""
 COMPOSER_DISABLE_XDEBUG_WARN=1 composer $CMD_ADD global require "fxp/composer-asset-plugin:~1.1"
 
 if [[ $DEV == 1 ]]; then
-	CMD_ADD="$CMD_ADD --prefer-source"
+    CMD_ADD="$CMD_ADD --prefer-source"
 else
-	CMD_ADD="$CMD_ADD --prefer-dist --no-dev -o"
+    CMD_ADD="$CMD_ADD --prefer-dist --no-dev -o"
 fi
 
 debug "composer install -n $CMD_ADD"
@@ -198,18 +212,49 @@ COMPOSER_DISABLE_XDEBUG_WARN=1 composer install -n $CMD_ADD
 
 rc=$?; 
 if [[ $rc != 0 ]]; then
-	echo "composer error" >&2
-	rm -Rf $DIR
-	exit $rc
+    echo "composer error" >&2
+    rm -Rf $DIR
+    exit $rc
 fi
 
-if [[ $VERBOSE == 1 ]]; then
-	echo "Done"
-fi
+CONSOLE=0
 
 if [ -f "$DIR/bin/console.php" ]; then
-	chmod u+x $DIR/bin/console.php
-	if [[ $VERBOSE == 1 ]]; then
-		echo "For inicialize project run:  \n$DIR/bin/console.php"
-	fi
+    chmod u+x $DIR/bin/console.php
+    CONSOLE=$DIR/bin/console.php
+    
+    edebug "For manage installed project use console: \e[93m$DIR/bin/console.php --help\e[0m"
+    
+    edebug "\e[32mInstalled version: \e[1m"$($CONSOLE git version)"\e[0m"
+    debug "Prepare database"
+    debug "$CONSOLE db create $DBOPTIONS"
+    $CONSOLE db create $DBOPTIONS
+    
+    rc=$?; 
+    if [[ $rc != 0 ]]; then
+        echo "error in prepare db" >&2
+        exit $rc
+    fi
+else
+    edebug "\e[32mDone\e[0m"
+    return 0
+fi
+
+if [ -f "$DIR/phinx.yml" ]; then
+    
+    if [[ $VERBOSE == 1 ]]; then
+        CMD_ADD="-v"
+    else
+        CMD_ADD="-q"
+    fi
+    debug "Migrate"
+    debug "php vendor/robmorgan/phinx/bin/phinx migrate $CMD_ADD"
+    php vendor/robmorgan/phinx/bin/phinx migrate $CMD_ADD
+    
+    rc=$?; 
+    if [[ $rc != 0 ]]; then
+        echo "error in migrate db" >&2
+        exit $rc
+    fi
+    edebug "\e[32mDone\e[0m"
 fi
